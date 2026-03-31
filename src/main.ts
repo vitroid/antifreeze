@@ -1179,10 +1179,14 @@ const LS_BASE = "antifreeze.baseUrl";
 const LS_PATH = "antifreeze.filePath";
 const LS_BROWSE_ROOT = "antifreeze.browseRoot";
 const LS_PREVIEW_BASE = "antifreeze.previewBaseUrl";
+const DEFAULT_WEBDAV_BASE_URL =
+  import.meta.env.VITE_DEFAULT_WEBDAV_BASE_URL?.trim() ?? "";
+const DEFAULT_BROWSE_ROOT =
+  import.meta.env.VITE_DEFAULT_BROWSE_ROOT?.trim() || "/";
 try {
-  el.baseUrl.value = localStorage.getItem(LS_BASE) ?? "";
+  el.baseUrl.value = localStorage.getItem(LS_BASE) ?? DEFAULT_WEBDAV_BASE_URL;
   el.filePath.value = localStorage.getItem(LS_PATH) ?? "";
-  el.browseRoot.value = localStorage.getItem(LS_BROWSE_ROOT) ?? "/";
+  el.browseRoot.value = localStorage.getItem(LS_BROWSE_ROOT) ?? DEFAULT_BROWSE_ROOT;
   el.previewBaseUrl.value =
     localStorage.getItem(LS_PREVIEW_BASE) ?? "http://www.chem.okayama-u.ac.jp:1313";
 } catch {
