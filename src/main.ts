@@ -327,10 +327,41 @@ function normalizePreviewBaseUrl(input: string): string {
   return u;
 }
 
+function parsePreviewSourceRoots(raw: string | undefined): string[] {
+  const fromEnv = (raw ?? "")
+    .split(",")
+    .map((s) => s.trim().replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean);
+  const roots =
+    fromEnv.length > 0
+      ? Array.from(new Set(fromEnv))
+      : // 既定: 既存 content 配下に加え、exampleSite/content 配下も扱う
+        ["content", "exampleSite/content", "exampleSite"];
+  // より具体的な（長い）ルートを先に試す
+  return roots.sort((a, b) => b.length - a.length);
+}
+
+const PREVIEW_SOURCE_ROOTS = parsePreviewSourceRoots(
+  import.meta.env.VITE_PREVIEW_SOURCE_ROOTS
+);
+
 function derivePreviewUrl(filePath: string, previewBase: string): string | null {
-  const normalized = stripBasePrefix(filePath).replace(/^\/+/, "");
-  if (!normalized.startsWith("content/")) return null;
-  let rel = normalized.slice("content/".length);
+  const normalized = stripBasePrefix(filePath).replace(/^\/+|\/+$/g, "");
+  let rel: string | null = null;
+  for (const root of PREVIEW_SOURCE_ROOTS) {
+    if (normalized === root) {
+      rel = "";
+      break;
+    }
+    if (normalized.startsWith(`${root}/`)) {
+      rel = normalized.slice(root.length + 1);
+      break;
+    }
+  }
+  if (rel == null) return null;
+  // 運用上 `exampleSite/content/...` を扱うため、先頭 content はURL投影時に除去する
+  if (rel === "content") rel = "";
+  else if (rel.startsWith("content/")) rel = rel.slice("content/".length);
   if (!rel.toLowerCase().endsWith(".md")) return null;
   const isEnglish = /\.en\.md$/i.test(rel);
   rel = rel.replace(/\.md$/i, "");
