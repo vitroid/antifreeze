@@ -1,4 +1,3 @@
-import { createClient, type WebDAVClient } from "webdav";
 import yaml from "js-yaml";
 import { EditorState } from "@codemirror/state";
 import { EditorView, basicSetup } from "codemirror";
@@ -7,6 +6,8 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import MarkdownIt from "markdown-it";
 import DOMPurify from "dompurify";
+import type { StorageProvider, DirEntry } from "./storage";
+import { WebDavProvider } from "./webdav-provider";
 
 const FM_BLOCK =
   /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n([\s\S]*))?$/;
@@ -165,159 +166,15 @@ function normalizeTrailingNewline(s: string): string {
   return s.endsWith("\n") ? s : `${s}\n`;
 }
 
-function normalizeBaseUrl(input: string): string {
-  const u = input.trim().replace(/\/+$/, "");
-  if (!u) throw new Error("WebDAV ベースURL を入力してください。");
-  return u;
-}
-
-function extractBasePathPrefix(baseUrl: string): string {
-  try {
-    const p = new URL(baseUrl).pathname || "/";
-    const trimmed = p.replace(/\/+$/, "");
-    return trimmed ? `${trimmed}/` : "/";
-  } catch {
-    return "/";
-  }
-}
-
-function stripBasePrefix(path: string): string {
-  let s = path.trim().replace(/"/g, "").replace(/\\/g, "/");
-  if (/^https?:\/\//i.test(s)) {
-    try {
-      s = new URL(s).pathname;
-    } catch {
-      // ignore
-    }
-  }
-  if (!s.startsWith("/")) s = `/${s}`;
-  const segs = s.split("/");
-  const out: string[] = [];
-  for (const seg of segs) {
-    if (!seg || seg === ".") continue;
-    if (seg === "..") {
-      if (out.length > 0) out.pop();
-      continue;
-    }
-    out.push(seg);
-  }
-  s = `/${out.join("/")}`;
-
-  const basePrefix = webDavBasePathPrefix === "/" ? "/" : webDavBasePathPrefix;
-  if (basePrefix !== "/") {
-    const baseSegFull = basePrefix.replace(/^\/|\/$/g, "");
-    const baseParts = baseSegFull.split("/").filter(Boolean);
-    const leaf = baseParts[baseParts.length - 1] ?? "";
-    const removable = [baseSegFull, leaf, "__webdav"].filter(Boolean);
-
-    for (const seg of removable) {
-      while (s === `/${seg}` || s.startsWith(`/${seg}/`)) {
-        s = s.slice(seg.length + 1);
-        if (!s.startsWith("/")) s = `/${s}`;
-        if (!s || s.length === 0) s = "/";
-        if (s === "/") break;
-      }
-    }
-  }
-
-  return s || "/";
-}
-
-function withBasePrefix(path: string): string {
-  const clean = stripBasePrefix(path);
-  const basePrefix = webDavBasePathPrefix === "/" ? "/" : webDavBasePathPrefix;
-  if (basePrefix === "/") return clean;
-  const prefix = basePrefix.replace(/\/+$/, "");
-  return clean === "/" ? `${prefix}/` : `${prefix}${clean}`;
-}
-
-function candidateFilePaths(inputPath: string): string[] {
-  const normalized = normalizeFilePath(inputPath);
-  const stripped = stripBasePrefix(normalized);
-  const prefixed = withBasePrefix(normalized);
-  const out: string[] = [];
-  for (const p of [normalized, stripped, prefixed]) {
-    if (!out.includes(p)) out.push(p);
-  }
-  return out;
-}
-
-function candidateDirectoryPaths(inputPath: string): string[] {
-  const base = normalizeDirPath(inputPath);
-  const stripped = normalizeDirPath(stripBasePrefix(base));
-  const prefixed = normalizeDirPath(withBasePrefix(base));
-  const out: string[] = [];
-  for (const p of [base, stripped, prefixed]) {
-    if (!out.includes(p)) out.push(p);
-  }
-  return out;
-}
-
-async function getFileContentsWithFallback(
-  c: WebDAVClient,
-  inputPath: string
-): Promise<{ path: string; text: string }> {
-  const tried: string[] = [];
-  const paths = candidateFilePaths(inputPath);
-  for (const p of paths) {
-    tried.push(p);
-    try {
-      const raw = await c.getFileContents(p, { format: "text" });
-      const text =
-        typeof raw === "string"
-          ? raw
-          : new TextDecoder().decode(raw as ArrayBuffer);
-      return { path: p, text };
-    } catch {
-      // try next candidate
-    }
-  }
-  throw new Error(
-    `ファイルを開けませんでした。試行したパス: ${tried.join(" , ")}`
-  );
-}
-
-async function getDirectoryContentsWithFallback(
-  c: WebDAVClient,
-  inputPath: string
-): Promise<{ path: string; list: Array<{ filename: string; basename?: string; type?: string }> }> {
-  const tried: string[] = [];
-  const paths = candidateDirectoryPaths(inputPath);
-  for (const p of paths) {
-    tried.push(p);
-    try {
-      const list = (await c.getDirectoryContents(p)) as Array<{
-        filename: string;
-        basename?: string;
-        type?: string;
-      }>;
-      return { path: p, list };
-    } catch {
-      // try next candidate
-    }
-  }
-  throw new Error(
-    `ディレクトリを開けませんでした。試行したパス: ${tried.join(" , ")}`
-  );
-}
-
 function normalizeFilePath(input: string): string {
   let p = input.trim();
   if (!p) throw new Error("ファイルパスを入力してください。");
   if (!p.startsWith("/")) p = `/${p}`;
   if (p === "/") {
     throw new Error(
-      "ルート `/` だけではファイルを開けません。Finder で見える階層に合わせ、`content/posts/hello.md` のように **実在する .md ファイル**のパスを指定してください。"
+      "ルート `/` だけではファイルを開けません。実在する .md ファイルのパスを指定してください。"
     );
   }
-  return p;
-}
-
-function normalizeDirPath(input: string): string {
-  let p = input.trim();
-  if (!p) p = "/";
-  if (!p.startsWith("/")) p = `/${p}`;
-  if (!p.endsWith("/")) p = `${p}/`;
   return p;
 }
 
@@ -328,9 +185,11 @@ function normalizePreviewBaseUrl(input: string): string {
 }
 
 function derivePreviewUrl(filePath: string, previewBase: string): string | null {
-  const normalized = stripBasePrefix(filePath).replace(/^\/+/, "");
-  if (!normalized.startsWith("content/")) return null;
-  let rel = normalized.slice("content/".length);
+  const normalized = filePath.replace(/^\/+/, "");
+  const idx = normalized.indexOf("content/");
+  if (idx < 0) return null;
+  const fromContent = normalized.slice(idx);
+  let rel = fromContent.slice("content/".length);
   if (!rel.toLowerCase().endsWith(".md")) return null;
   const isEnglish = /\.en\.md$/i.test(rel);
   rel = rel.replace(/\.md$/i, "");
@@ -370,8 +229,8 @@ function formatError(e: unknown): string {
   return raw;
 }
 
-function makeClient(baseUrl: string): WebDAVClient {
-  return createClient(normalizeBaseUrl(baseUrl));
+function createProvider(baseUrl: string): StorageProvider {
+  return new WebDavProvider(baseUrl);
 }
 
 // --- DOM ---
@@ -468,7 +327,7 @@ const el = {
   preview: app.querySelector<HTMLDivElement>("#preview")!,
 };
 
-let client: WebDAVClient | null = null;
+let provider: StorageProvider | null = null;
 let currentPath = "";
 let metaSnapshot: HugoMeta = {};
 let metaFields: FieldSpec[] = [];
@@ -476,7 +335,6 @@ let view: EditorView | null = null;
 let previewDebounce: number | undefined;
 let activePreviewBlock: HTMLElement | null = null;
 let treeRoot: TreeNode | null = null;
-let webDavBasePathPrefix = "/";
 let currentHasFrontMatter = true;
 
 function escapeHtml(s: string): string {
@@ -797,105 +655,37 @@ function basename(path: string): string {
   return idx >= 0 ? trimmed.slice(idx + 1) : trimmed;
 }
 
-function canonicalPath(path: string): string {
-  const p = path.replace(/\/+$/, "");
-  return p || "/";
-}
-
-function normalizeWebDavEntryPath(rawPath: string, parentPath: string): string {
-  let s = rawPath.trim().replace(/"/g, "");
-  if (/^https?:\/\//i.test(s)) {
-    try {
-      s = new URL(s).pathname;
-    } catch {
-      // ignore
-    }
-  }
-  s = s.replace(/\\/g, "/");
-  if (!s.startsWith("/")) {
-    s = `${parentPath.replace(/\/+$/, "")}/${s}`;
-  }
-  const segments = s.split("/");
-  const normalized: string[] = [];
-  for (const seg of segments) {
-    if (!seg || seg === ".") continue;
-    if (seg === "..") {
-      if (normalized.length > 0) normalized.pop();
-      continue;
-    }
-    normalized.push(seg);
-  }
-  let normalizedPath = `/${normalized.join("/")}`;
-  const basePrefix = webDavBasePathPrefix === "/" ? "/" : webDavBasePathPrefix;
-  if (basePrefix !== "/" && normalizedPath.startsWith(basePrefix)) {
-    const stripped = normalizedPath.slice(basePrefix.length - 1);
-    normalizedPath = stripped.startsWith("/") ? stripped : `/${stripped}`;
-  }
-  return normalizedPath;
-}
-
-function isHiddenLike(name: string): boolean {
-  return name.startsWith("._");
-}
-
-function isDotNavigationName(name: string): boolean {
-  return name === "." || name === "..";
-}
-
-function isDotNavigationPath(rawPath: string): boolean {
-  const p = rawPath.trim().replace(/"/g, "");
-  return /(^|\/)\.\.?\/?$/.test(p);
-}
-
-function shouldDisplayEntry(node: TreeNode): boolean {
-  if (isDotNavigationName(node.name)) return false;
-  if (isHiddenLike(node.name)) return false;
-  if (node.isDir && node.name.toLowerCase() === "chemweb") return false;
-  if (!node.isDir && !isMarkdownFile(node.path)) return false;
+function shouldDisplayEntry(entry: DirEntry): boolean {
+  const n = entry.name;
+  if (n === "." || n === "..") return false;
+  if (n.startsWith("._")) return false;
+  if (entry.isDir && n.toLowerCase() === "chemweb") return false;
+  if (!entry.isDir && !isMarkdownFile(entry.path)) return false;
   return true;
 }
 
+function dirEntryToTreeNode(entry: DirEntry): TreeNode {
+  return {
+    path: entry.path,
+    name: entry.name,
+    isDir: entry.isDir,
+    expanded: false,
+    loaded: false,
+    children: [],
+    loading: false,
+  };
+}
+
 async function fetchChildren(node: TreeNode): Promise<void> {
-  if (!client || !node.isDir) return;
+  if (!provider || !node.isDir) return;
   node.loading = true;
   node.loadError = undefined;
   renderBrowserTree();
   try {
-    const result = await getDirectoryContentsWithFallback(client, node.path);
-    node.path = result.path;
-    const list = result.list;
-    const parentNorm = canonicalPath(normalizeWebDavEntryPath(node.path, node.path));
-    const parentName = basename(parentNorm);
-    node.children = list
-      .filter((item) => !isDotNavigationPath(item.filename ?? ""))
-      .map((item) => {
-        const rawPath = item.filename ?? "";
-        let itemPath = normalizeWebDavEntryPath(rawPath, node.path);
-        const type = (item.type ?? "").toLowerCase();
-        const isDir = type === "directory" || rawPath.endsWith("/");
-        if (isDir && !itemPath.endsWith("/")) itemPath = `${itemPath}/`;
-        const label = (item.basename ?? basename(itemPath) ?? "").trim();
-        return {
-          path: itemPath,
-          name: label || basename(itemPath) || itemPath,
-          isDir,
-          expanded: false,
-          loaded: false,
-          children: [],
-          loading: false,
-          loadError: undefined,
-        } satisfies TreeNode;
-      })
-      .filter((entry) => {
-        const entryNorm = canonicalPath(
-          normalizeWebDavEntryPath(entry.path, node.path)
-        );
-        if (entryNorm === parentNorm) return false;
-        // WebDAV 実装によっては親ディレクトリを同名で返すことがあるため除外
-        if (entry.isDir && entry.name === parentName) return false;
-        return true;
-      })
-      .filter((entry) => shouldDisplayEntry(entry))
+    const entries = await provider.listDirectory(node.path);
+    node.children = entries
+      .filter(shouldDisplayEntry)
+      .map(dirEntryToTreeNode)
       .sort(sortTreeEntries);
     node.loaded = true;
   } catch (e) {
@@ -985,13 +775,24 @@ function renderBrowserTree() {
   renderTreeNode(treeRoot, el.browserTree);
 }
 
+function normalizeBrowseRoot(input: string): string {
+  let p = input.trim();
+  if (!p) p = "/";
+  if (!p.startsWith("/")) p = `/${p}`;
+  if (!p.endsWith("/")) p = `${p}/`;
+  return p;
+}
+
 async function handleBrowse() {
   showError(null);
   try {
-    const base = normalizeBaseUrl(el.baseUrl.value);
-    webDavBasePathPrefix = extractBasePathPrefix(base);
-    const rootPath = stripBasePrefix(normalizeDirPath(el.browseRoot.value || "/"));
-    client = makeClient(base);
+    const base = el.baseUrl.value.trim();
+    if (!base) {
+      showError("WebDAV ベースURL を入力してください。");
+      return;
+    }
+    provider = createProvider(base);
+    const rootPath = normalizeBrowseRoot(el.browseRoot.value || "/");
     treeRoot = {
       path: rootPath,
       name: rootPath === "/" ? "/" : basename(rootPath),
@@ -1034,11 +835,16 @@ function createEditor(content: string) {
 async function handleLoad() {
   showError(null);
   try {
-    const base = normalizeBaseUrl(el.baseUrl.value);
-    webDavBasePathPrefix = extractBasePathPrefix(base);
+    if (!provider) {
+      const base = el.baseUrl.value.trim();
+      if (!base) {
+        showError("WebDAV ベースURL を入力してください。");
+        return;
+      }
+      provider = createProvider(base);
+    }
     const inputPath = normalizeFilePath(el.filePath.value);
-    client = makeClient(base);
-    const loaded = await getFileContentsWithFallback(client, inputPath);
+    const loaded = await provider.readFile(inputPath);
     currentPath = loaded.path;
     const text = loaded.text;
     el.filePath.value = loaded.path;
@@ -1063,7 +869,7 @@ async function handleLoad() {
 
 async function handleSave() {
   showError(null);
-  if (!client || !currentPath || !view) {
+  if (!provider || !currentPath || !view) {
     showError("先にファイルを開いてください。");
     return;
   }
@@ -1078,7 +884,7 @@ async function handleSave() {
     } else {
       out = normalizeTrailingNewline(body);
     }
-    await client.putFileContents(currentPath, out, { overwrite: true });
+    await provider.writeFile(currentPath, out, true);
     showError(null);
     el.btnSave.textContent = "保存した";
     setTimeout(() => {
@@ -1091,7 +897,7 @@ async function handleSave() {
 
 async function handleSaveAs() {
   showError(null);
-  if (!client || !currentPath || !view) {
+  if (!provider || !currentPath || !view) {
     showError("先にファイルを開いてください。");
     return;
   }
@@ -1114,7 +920,7 @@ async function handleSaveAs() {
     } else {
       out = normalizeTrailingNewline(body);
     }
-    await client.putFileContents(nextPath, out, { overwrite: false });
+    await provider.writeFile(nextPath, out, false);
     currentPath = nextPath;
     el.filePath.value = nextPath;
     showError(null);
@@ -1122,7 +928,6 @@ async function handleSaveAs() {
     setTimeout(() => {
       el.btnSaveAs.textContent = "別名で保存";
     }, 1200);
-    // 新規作成したファイルもすぐに辿れるよう一覧を更新
     await handleBrowse();
   } catch (e) {
     showError(formatError(e));
@@ -1131,14 +936,14 @@ async function handleSaveAs() {
 
 async function handleDelete() {
   showError(null);
-  if (!client || !currentPath) {
+  if (!provider || !currentPath) {
     showError("先にファイルを開いてください。");
     return;
   }
   const ok = window.confirm(`このファイルを削除しますか?\n${currentPath}`);
   if (!ok) return;
   try {
-    await client.deleteFile(currentPath);
+    await provider.deleteFile(currentPath);
     destroyEditor();
     setLoadedUi(false, false);
     currentPath = "";
