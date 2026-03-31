@@ -31,6 +31,15 @@ VITE_DEFAULT_WEBDAV_BASE_URL=https://www.chem.okayama-u.ac.jp/chemweb
 VITE_DEFAULT_BROWSE_ROOT=/content/
 ```
 
+`サイトで確認` ボタンの投影元ルートは `VITE_PREVIEW_SOURCE_ROOTS` で指定できます（カンマ区切り）。
+
+```
+VITE_PREVIEW_SOURCE_ROOTS=content,exampleSite/content,exampleSite
+```
+
+例えば `chemweb/exampleSite/A/B.en.md` は `http://domain:1313/en/A/B` に投影されます。
+`exampleSite/content/faculty/matsumoto.ja.md` の場合は `http://domain:1313/faculty/matsumoto` になります。
+
 ## WebDAV と同じマシンで開発する場合
 
 同一ホスト上で動かすとオリジンを揃えやすく、CORS を気にしなくて済むことが多いです。
