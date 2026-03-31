@@ -24,6 +24,13 @@ VITE_DEV_WEBDAV_TARGET=http://WebDAVサーバのホスト名
 
 `.env.example` も参照してください。`npm run dev` を再起動したうえで、アプリの WebDAV ベースURLに `http://localhost:5173/__webdav/（Finder で使っているパス）` の形式を使うと、Vite がプロキシして CORS を避けられます。
 
+UI の初期値は環境変数でも指定できます（`localStorage` に保存済み値がある場合はそちらを優先）。
+
+```
+VITE_DEFAULT_WEBDAV_BASE_URL=https://www.chem.okayama-u.ac.jp/chemweb
+VITE_DEFAULT_BROWSE_ROOT=/content/
+```
+
 ## WebDAV と同じマシンで開発する場合
 
 同一ホスト上で動かすとオリジンを揃えやすく、CORS を気にしなくて済むことが多いです。
@@ -32,6 +39,52 @@ VITE_DEV_WEBDAV_TARGET=http://WebDAVサーバのホスト名
 - **本番に近い動き:** `npm run build` のあと `dist/` を nginx 等で静的配信し、WebDAV と同じ `https://例:ホスト名` 配下に置けば同一オリジンにしやすいです。
 
 設計メモやサーバ側 CORS の例は [PLAN.md](./PLAN.md) を参照してください。
+
+## 本番デプロイ（`https://www.chem.okayama-u.ac.jp/antifeeze`）
+
+`/antifeeze/` のサブパスで配信する場合は、ビルド時に Vite の `base` を合わせます。
+
+1. 本番用 `.env` を作成（例）
+
+```bash
+cat > .env <<'EOF'
+VITE_APP_BASE_PATH=/antifeeze/
+EOF
+```
+
+2. ビルド
+
+```bash
+npm install
+npm run build
+```
+
+3. 配置先へ反映（提案どおり `/var/www/antifreeze`）
+
+```bash
+sudo mkdir -p /var/www/antifreeze
+sudo rsync -av --delete dist/ /var/www/antifreeze/
+```
+
+4. Nginx 例（`/antifeeze/` を静的配信）
+
+```nginx
+location /antifeeze/ {
+    alias /var/www/antifreeze/;
+    index index.html;
+    try_files $uri $uri/ /antifeeze/index.html;
+}
+```
+
+5. 設定反映
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+補足:
+- URL の綴りを `antifeeze` にする場合、`VITE_APP_BASE_PATH` と Nginx の `location` を同じ綴りに統一してください。
+- もし `antifreeze` にしたい場合は、`/antifreeze/` に置き換えて同様に設定できます。
 
 ## ライセンス
 

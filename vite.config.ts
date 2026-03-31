@@ -4,8 +4,13 @@ import { defineConfig, loadEnv } from "vite";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const target = env.VITE_DEV_WEBDAV_TARGET?.trim().replace(/\/+$/, "");
+  const basePath = env.VITE_APP_BASE_PATH?.trim();
 
   return {
+    base:
+      basePath && basePath !== "/"
+        ? `/${basePath.replace(/^\/+|\/+$/g, "")}/`
+        : "/",
     server: {
       port: 5173,
       strictPort: true,
