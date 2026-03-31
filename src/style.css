@@ -21,7 +21,7 @@ body {
 }
 
 #app {
-  max-width: 960px;
+  max-width: min(1440px, 100%);
   margin: 0 auto;
   padding: 1rem 1.25rem 2rem;
 }
@@ -47,11 +47,39 @@ h2 {
   margin-bottom: 0.75rem;
 }
 
+.layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0.75rem;
+  align-self: start;
+}
+
+.main {
+  min-width: 0;
+}
+
 .panel--connection label {
   display: block;
   font-size: 0.8rem;
   color: #52525b;
   margin-bottom: 0.35rem;
+}
+
+.panel--connection summary {
+  cursor: pointer;
+  font-size: 0.86rem;
+  color: #52525b;
+  margin-bottom: 0.45rem;
+}
+
+.panel--connection[open] summary {
+  margin-bottom: 0.65rem;
 }
 
 .panel--connection input[type="url"],
@@ -62,6 +90,12 @@ h2 {
   border: 1px solid #d4d4d8;
   border-radius: 6px;
   font-size: 0.9rem;
+}
+
+#meta-form textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .row-actions {
@@ -123,11 +157,20 @@ button:disabled {
 }
 
 #meta-form input[type="text"],
-#meta-form input[type="datetime-local"] {
+#meta-form input[type="datetime-local"],
+#meta-form input[type="date"],
+#meta-form input[type="time"],
+#meta-form textarea {
   padding: 0.4rem 0.5rem;
   border: 1px solid #d4d4d8;
   border-radius: 6px;
   font-size: 0.9rem;
+}
+
+.date-row {
+  display: grid;
+  grid-template-columns: 1fr 8.5rem;
+  gap: 0.45rem;
 }
 
 #meta-form .checkbox-row {
@@ -138,6 +181,51 @@ button:disabled {
 
 #meta-form .checkbox-row input {
   width: auto;
+}
+
+.browser-tree {
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  padding: 0.45rem;
+  background: #fafafa;
+  max-height: min(78vh, 960px);
+  overflow: auto;
+}
+
+.tree-row {
+  margin: 0.05rem 0;
+}
+
+.tree-button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.tree-button:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.tree-button--muted {
+  color: #9ca3af;
+}
+
+.tree-children {
+  margin-left: 0.95rem;
+  border-left: 1px dashed #d4d4d8;
+  padding-left: 0.45rem;
+}
+
+.tree-loading,
+.tree-empty {
+  color: #71717a;
+  font-size: 0.82rem;
+  padding: 0.2rem 0.35rem;
 }
 
 .editor-wrap {
@@ -151,8 +239,261 @@ button:disabled {
   min-height: 280px;
 }
 
+.editor-wrap .cm-scroller {
+  overflow: auto;
+}
+
+.editor-wrap .cm-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.editor-wrap .cm-content {
+  caret-color: #111827;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 880px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    position: static;
+  }
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.split__right h2,
+.split__left h2 {
+  margin-top: 0;
+}
+
+.split__left,
+.split__right {
+  min-width: 0;
+}
+
+.preview-pane {
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  min-height: 280px;
+  max-height: min(70vh, 720px);
+  overflow: auto;
+  overflow-wrap: break-word;
+  background: #fafafa;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.preview-pane :first-child {
+  margin-top: 0;
+}
+
+.preview-pane h1 {
+  font-size: 1.35rem;
+}
+
+.preview-pane h2 {
+  font-size: 1.15rem;
+}
+
+.preview-pane h3 {
+  font-size: 1.05rem;
+}
+
+.preview-pane pre {
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: #f4f4f5;
+  overflow-x: auto;
+  font-size: 0.82rem;
+}
+
+.preview-pane code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.86em;
+}
+
+.preview-pane pre code {
+  font-size: inherit;
+}
+
+.preview-pane blockquote {
+  margin: 0.5rem 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid #d4d4d8;
+  color: #52525b;
+}
+
+.preview-pane img {
+  max-width: 100%;
+  height: auto;
+}
+
+.preview-pane table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+
+.preview-pane th,
+.preview-pane td {
+  border: 1px solid #d1d5db;
+  padding: 0.35rem 0.5rem;
+  vertical-align: top;
+}
+
+.preview-pane thead th {
+  background: #f3f4f6;
+}
+
+.preview-error {
+  color: #991b1b;
+  margin: 0;
+}
+
+.preview-block {
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+.preview-line + .preview-block {
+  margin-top: 0.15rem;
+}
+
+.preview-block.is-active {
+  background: #fef08a;
+}
+
+.shortcode-pill {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.78rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .hint {
   font-size: 0.75rem;
   color: #71717a;
   margin-top: 0.5rem;
+}
+
+.row-actions--sticky {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.9rem;
+  justify-content: flex-end;
+  background: rgba(244, 244, 245, 0.92);
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  padding: 0.45rem 0.5rem;
+  z-index: 50;
+  backdrop-filter: blur(2px);
+}
+
+.top-right-actions {
+  margin-top: 0;
+}
+
+.btn-save {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.btn-save:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-saveas {
+  background: #059669;
+  border-color: #047857;
+  color: #fff;
+}
+
+.btn-saveas:hover:not(:disabled) {
+  background: #047857;
+}
+
+.btn-delete {
+  background: #dc2626;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.btn-meta {
+  background: #374151;
+  border-color: #1f2937;
+  color: #fff;
+}
+
+.btn-meta:hover:not(:disabled) {
+  background: #1f2937;
+}
+
+.btn-previewsite {
+  background: #7c3aed;
+  border-color: #6d28d9;
+  color: #fff;
+}
+
+.btn-previewsite:hover:not(:disabled) {
+  background: #6d28d9;
+}
+
+.preview-block--blank {
+  min-height: 0.85rem;
+}
+
+.meta-dialog {
+  width: min(760px, 92vw);
+  max-height: 86vh;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  padding: 0;
+}
+
+.meta-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.meta-dialog__inner {
+  margin: 0;
+  padding: 0;
+}
+
+.meta-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.95rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.meta-dialog__body {
+  padding: 0.85rem 1rem 1rem;
+  max-height: calc(86vh - 3.3rem);
+  overflow: auto;
+}
+
+.meta-dialog__close {
+  background: #fff;
 }
